@@ -4,11 +4,11 @@ import { AnalysisResult } from "./types";
 
 const SYSTEM_INSTRUCTION = `
 Jsi LITE asistent pro "Umíme to". Tvůj úkol:
-1. Okamžitě najdi otázku.
-2. Napiš JEN správnou odpověď.
+1. Okamžitě najdi otázku a možnosti na obrázku.
+2. Napiš JEN přesnou správnou odpověď tak, jak se vyskytuje v textu (velmi důležité pro automatické kliknutí).
 3. Vysvětlení napiš v JEDNÉ extrémně krátké větě.
 
-Odpovídej VŽDY v JSONu. Buď maximálně stručný.
+Odpovídej VŽDY v JSONu. Buď maximálně stručný a přesný v textu odpovědi.
 `;
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
@@ -18,12 +18,11 @@ export const analyzeScreen = async (base64Image: string, retries = 2): Promise<A
   
   try {
     const response = await ai.models.generateContent({
-      // Model gemini-flash-lite-latest má nejvyšší kvóty v bezplatném režimu
       model: 'gemini-flash-lite-latest',
       contents: {
         parts: [
           { inlineData: { data: base64Image, mimeType: 'image/jpeg' } },
-          { text: "Vyřeš. JSON." }
+          { text: "Vyřeš úkol. JSON." }
         ]
       },
       config: {
@@ -54,8 +53,7 @@ export const analyzeScreen = async (base64Image: string, retries = 2): Promise<A
     const isQuota = errString.includes('429') || errString.toLowerCase().includes('quota');
 
     if (isQuota && retries > 0) {
-      console.log(`Limit detekován, zkouším znovu... Zbývá pokusů: ${retries}`);
-      await delay(1500 * (3 - retries)); // Exponenciální čekání
+      await delay(1000 * (3 - retries));
       return analyzeScreen(base64Image, retries - 1);
     }
 
