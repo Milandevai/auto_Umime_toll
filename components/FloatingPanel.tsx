@@ -64,17 +64,17 @@ const FloatingPanel: React.FC<FloatingPanelProps> = ({ result, isAnalyzing, onRe
 
   return (
     <div 
-      className={`fixed z-50 w-[380px] rounded-3xl overflow-hidden glass shadow-2xl transition-opacity duration-300 ${isDragging ? 'opacity-80 scale-95' : 'opacity-100 scale-100'}`}
+      className={`fixed z-50 w-[380px] rounded-3xl overflow-hidden glass shadow-2xl transition-all duration-300 ${isDragging ? 'opacity-80 scale-95' : 'opacity-100 scale-100'}`}
       style={{ left: position.x, top: position.y }}
     >
-      {/* Header / Drag Bar */}
+      {/* Header */}
       <div 
         onMouseDown={handleMouseDown}
         className="bg-indigo-600 p-4 cursor-move flex items-center justify-between"
       >
         <div className="flex items-center gap-2 text-white font-bold">
-          <i className="fas fa-brain"></i>
-          <span>Řešení & Vysvětlení</span>
+          <i className="fas fa-bolt"></i>
+          <span>Lite Odpověď</span>
         </div>
         <div className="flex gap-2">
           <button 
@@ -88,54 +88,45 @@ const FloatingPanel: React.FC<FloatingPanelProps> = ({ result, isAnalyzing, onRe
             onClick={() => setIsVisible(false)}
             className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/20 text-white transition-colors"
           >
-            <i className="fas fa-times"></i>
+            <i className="fas fa-minus"></i>
           </button>
         </div>
       </div>
 
       {/* Content */}
-      <div className="p-6 max-h-[500px] overflow-y-auto custom-scrollbar">
+      <div className="p-5 max-h-[400px] overflow-y-auto custom-scrollbar">
         {!result ? (
-          <div className="text-center py-12 space-y-4">
-            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-400">
-              <i className="fas fa-camera text-2xl"></i>
+          <div className="text-center py-8 space-y-3">
+            <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mx-auto text-indigo-400">
+              <i className="fas fa-search text-xl"></i>
             </div>
-            <p className="text-slate-500 font-medium">Zatím žádná data. Klikněte na tlačítko "Vyřešit" v hlavním okně.</p>
+            <p className="text-slate-400 text-sm">Čekám na vaši akci...</p>
           </div>
         ) : (
-          <div className="space-y-6">
-            <section>
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Otázka</h3>
-              <p className="text-slate-900 font-medium leading-relaxed">{result.question}</p>
-            </section>
-
+          <div className="space-y-5">
             <section className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
-              <h3 className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-2">Správná Odpověď</h3>
-              <p className="text-emerald-900 font-bold text-xl">{result.answer}</p>
+              <h3 className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1">Odpověď</h3>
+              <p className="text-emerald-900 font-extrabold text-xl">{result.answer}</p>
             </section>
 
-            <section>
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Proč?</h3>
-              <p className="text-slate-700 text-sm leading-relaxed whitespace-pre-line">{result.explanation}</p>
+            <section className="px-1">
+              <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Vysvětlení</h3>
+              <p className="text-slate-700 text-sm leading-relaxed italic">{result.explanation}</p>
             </section>
 
-            <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 italic">
-              <span>Analyzováno pomocí Gemini 3</span>
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[9px] text-slate-300 font-mono">
+              <span>GEMINI LITE MODE</span>
               <span>{new Date(result.timestamp).toLocaleTimeString()}</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Floating Status Indicator */}
+      {/* Loading Overlay */}
       {isAnalyzing && (
-        <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-3">
-          <div className="flex gap-1">
-            <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-            <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-            <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce"></div>
-          </div>
-          <span className="text-indigo-600 font-bold text-sm tracking-widest uppercase">Přemýšlím...</span>
+        <div className="absolute inset-0 bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+          <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-indigo-600 font-bold text-[10px] tracking-widest uppercase">Zpracovávám...</span>
         </div>
       )}
     </div>

@@ -8,7 +8,7 @@ const App: React.FC = () => {
   const [isCapturing, setIsCapturing] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastResult, setLastResult] = useState<AnalysisResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; isQuota: boolean } | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -29,14 +29,23 @@ const App: React.FC = () => {
     }
   }, [isCapturing]);
 
+  const handleSelectKey = async () => {
+    try {
+      await (window as any).aistudio.openSelectKey();
+      setError(null);
+    } catch (err) {
+      console.error("Key selection failed:", err);
+    }
+  };
+
   const startCapture = async () => {
     try {
       setError(null);
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: { 
           cursor: "always",
-          width: { ideal: 1280 }, // Snížené cílové rozlišení pro rychlost
-          frameRate: { ideal: 15 }
+          width: { ideal: 960 }, // Optimalizované rozlišení pro Lite model
+          frameRate: { ideal: 10 }
         } as any,
         audio: false
       });
@@ -48,7 +57,7 @@ const App: React.FC = () => {
         stopCapture();
       };
     } catch (err: any) {
-      setError("Nepodařilo se spustit sdílení.");
+      setError({ message: "Nepodařilo se spustit sdílení.", isQuota: false });
     }
   };
 
@@ -64,16 +73,15 @@ const App: React.FC = () => {
     try {
       if (video.paused) await video.play().catch(() => {});
 
-      // Rychlejší check (50ms interval místo 100ms)
       let attempts = 0;
-      while (video.readyState < 2 && attempts < 40) {
-        await new Promise(resolve => setTimeout(resolve, 50));
+      while (video.readyState < 2 && attempts < 15) {
+        await new Promise(resolve => setTimeout(resolve, 30));
         attempts++;
       }
 
-      const MAX_DIMENSION = 1024; // Menší obrázek = rychlejší nahrávání a OCR
-      let width = video.videoWidth || 1280;
-      let height = video.videoHeight || 720;
+      const MAX_DIMENSION = 720;
+      let width = video.videoWidth || 960;
+      let height = video.videoHeight || 540;
 
       if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
         const ratio = Math.min(MAX_DIMENSION / width, MAX_DIMENSION / height);
@@ -87,13 +95,18 @@ const App: React.FC = () => {
       
       if (ctx) {
         ctx.drawImage(video, 0, 0, width, height);
-        // Kvalita 0.7 stačí pro OCR a zmenší datový balík
-        const base64Image = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+        // Nižší kvalita JPEG pro bleskové nahrávání a obejití limitů objemu dat
+        const base64Image = canvas.toDataURL('image/jpeg', 0.4).split(',')[1];
         const result = await analyzeScreen(base64Image);
         setLastResult(result);
       }
     } catch (err: any) {
-      setError("Zkuste to znovu.");
+      console.error("Analysis error:", err);
+      const isQuotaError = err.message === "QUOTA_EXHAUSTED";
+      setError({ 
+        message: isQuotaError ? "API je přetížené. Zkuste to za chvíli." : "Zkuste to znovu.", 
+        isQuota: isQuotaError 
+      });
     } finally {
       setIsAnalyzing(false);
     }
@@ -110,14 +123,23 @@ const App: React.FC = () => {
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-100 rounded-full blur-3xl opacity-50"></div>
       </div>
 
-      <header className="mb-8 text-center max-w-2xl">
+      <header className="mb-8 text-center max-w-2xl relative">
+        <div className="absolute -top-4 -right-24">
+          <button 
+            onClick={handleSelectKey}
+            title="Nastavení klíče"
+            className="p-2 text-slate-300 hover:text-indigo-400 transition-colors"
+          >
+            <i className="fas fa-cog"></i>
+          </button>
+        </div>
         <div className="inline-flex items-center justify-center w-14 h-14 bg-indigo-600 rounded-2xl shadow-lg mb-4">
           <i className="fas fa-bolt text-2xl text-white"></i>
         </div>
         <h1 className="text-3xl font-extrabold text-slate-900 mb-1 tracking-tight">
-          Turbo <span className="text-indigo-600">Umíme To</span>
+          LITE <span className="text-indigo-600">Umíme To</span>
         </h1>
-        <p className="text-slate-500 text-sm">Rychlá pomoc pro vaše úkoly.</p>
+        <p className="text-slate-500 text-sm">Model Flash Lite s nejvyšší kvótou požadavků.</p>
       </header>
 
       <main className="w-full max-w-4xl flex flex-col items-center gap-6">
@@ -127,7 +149,7 @@ const App: React.FC = () => {
             className="flex items-center gap-3 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-bold text-lg shadow-xl transition-all hover:scale-105 active:scale-95"
           >
             <i className="fas fa-desktop"></i>
-            Zapnout sdílení
+            Sdílet obrazovku
           </button>
         ) : (
           <div className="flex flex-col items-center gap-4 w-full">
@@ -149,9 +171,9 @@ const App: React.FC = () => {
                 <button
                   onClick={captureAndAnalyze}
                   disabled={isAnalyzing}
-                  className={`px-8 py-3 ${isAnalyzing ? 'bg-slate-400' : 'bg-indigo-600 hover:bg-indigo-700'} text-white rounded-full font-bold text-base shadow-2xl transition-all`}
+                  className={`px-8 py-3 ${isAnalyzing ? 'bg-slate-400' : 'bg-indigo-600 hover:bg-indigo-700'} text-white rounded-full font-bold text-base shadow-2xl transition-all active:scale-95`}
                 >
-                  {isAnalyzing ? "Blesková analýza..." : "VYŘEŠIT TEĎ"}
+                  {isAnalyzing ? "Hledám řešení..." : "VYŘEŠIT ÚKOL"}
                 </button>
               </div>
             </div>
@@ -159,8 +181,14 @@ const App: React.FC = () => {
         )}
 
         {error && (
-          <div className="text-red-500 font-medium bg-red-50 px-4 py-2 rounded-lg text-sm border border-red-100">
-            {error}
+          <div className={`w-full max-w-xl p-4 rounded-xl border flex flex-col gap-3 shadow-lg transform transition-all ${error.isQuota ? 'bg-amber-50 border-amber-300 text-amber-900' : 'bg-red-50 border-red-300 text-red-900'}`}>
+            <div className="flex items-center gap-3 font-bold">
+              <i className={`fas ${error.isQuota ? 'fa-clock text-amber-600' : 'fa-exclamation-circle text-red-600'}`}></i>
+              {error.message}
+            </div>
+            {error.isQuota && (
+              <p className="text-xs">Model má momentálně moc práce. Zkuste kliknout na tlačítko znovu za pár sekund.</p>
+            )}
           </div>
         )}
       </main>
