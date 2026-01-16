@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AnalysisResult } from '../types';
 
 interface FloatingPanelProps {
@@ -13,14 +13,34 @@ const FloatingPanel: React.FC<FloatingPanelProps> = ({ result, isAnalyzing, onRe
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isVisible, setIsVisible] = useState(true);
-  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle');
+  const [autoMode, setAutoMode] = useState(true);
+  const [bridgeStatus, setBridgeStatus] = useState<'idle' | 'copied'>('idle');
+  const [bridgeId, setBridgeId] = useState<string>('');
 
   useEffect(() => {
-    if (result) {
-      setIsVisible(true);
-      setCopyStatus('idle');
+    let id = localStorage.getItem('umauto_bridge_id');
+    if (!id) {
+      id = Math.random().toString(36).substring(2, 8).toUpperCase();
+      localStorage.setItem('umauto_bridge_id', id);
     }
-  }, [result]);
+    setBridgeId(id);
+  }, []);
+
+  useEffect(() => {
+    if (result && autoMode && bridgeId) {
+      fetch(`https://ntfy.sh/umauto_${bridgeId}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          answer: result.answer,
+          timestamp: Date.now()
+        }),
+        headers: {
+          'Title': 'UMAUTO_ANSWER',
+          'Tags': 'brain'
+        }
+      }).catch(err => console.error("Chyba mostu:", err));
+    }
+  }, [result, autoMode, bridgeId]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
@@ -39,184 +59,203 @@ const FloatingPanel: React.FC<FloatingPanelProps> = ({ result, isAnalyzing, onRe
         });
       }
     };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-    };
-
+    const handleMouseUp = () => setIsDragging(false);
     if (isDragging) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
     }
-
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isDragging, dragOffset]);
 
-  const copyAutoClickScript = () => {
-    if (!result) return;
-    
-    const cleanAnswer = result.answer.replace(/"/g, '\\"');
-    // Vylepšený skript pro Umíme To
+  const copyCloudBridgeScript = () => {
     const script = `
 (function() {
-  const ans = "${cleanAnswer}".toLowerCase().trim();
-  console.log('%c[Turbo] Hledám odpověď: ' + ans, 'color: #6366f1; font-weight: bold');
-
-  // 1. Zkusíme najít tlačítka nebo volby podle textu
-  const selectors = [
-    'button', '.choice', '.option', '.answer-button', 
-    '.tile', 'span', 'div[role="button"]', 'a'
-  ];
+  const BRIDGE_ID = "${bridgeId}";
+  console.log('%c[umauto.ai] ULTRA MOST 3.0 AKTIVOVÁN (ID: ' + BRIDGE_ID + ')', 'background: #6366f1; color: white; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 1.1em;');
   
-  let found = false;
-  for (const selector of selectors) {
-    const elements = [...document.querySelectorAll(selector)];
-    const target = elements.find(el => {
-      const txt = el.innerText.toLowerCase().trim();
-      return txt === ans || (txt.length > 0 && ans === txt) || (ans.includes(txt) && txt.length > 3);
-    });
+  const eventSource = new EventSource('https://ntfy.sh/umauto_' + BRIDGE_ID + '/sse');
+  
+  // Čištění textu pro srovnání
+  const clean = (str) => str.toLowerCase().replace(/[^a-z0-9áéíóúýčďěňřšťůž]/gi, '').trim();
 
-    if (target) {
-      target.click();
-      console.log('%c[Turbo] KLIKNUTO!', 'color: #10b981; font-weight: bold');
-      found = true;
-      break;
+  // Výpočet podobnosti (Levenshteinova vzdálenost)
+  const getSimilarity = (s1, s2) => {
+    const c1 = clean(s1);
+    const c2 = clean(s2);
+    if (c1 === c2) return 100;
+    if (c1.includes(c2) || c2.includes(c1)) return 80;
+    
+    let longer = c1;
+    let shorter = c2;
+    if (c1.length < c2.length) {
+      longer = c2;
+      shorter = c1;
     }
-  }
+    let longerLength = longer.length;
+    if (longerLength === 0) return 100.0;
+    
+    // Zjednodušená verze pro skript (editační vzdálenost)
+    const editDistance = (s1, s2) => {
+      let costs = new Array();
+      for (let i = 0; i <= s1.length; i++) {
+        let lastValue = i;
+        for (let j = 0; j <= s2.length; j++) {
+          if (i == 0) costs[j] = j;
+          else {
+            if (j > 0) {
+              let newValue = costs[j - 1];
+              if (s1.charAt(i - 1) != s2.charAt(j - 1))
+                newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+              costs[j - 1] = lastValue;
+              lastValue = newValue;
+            }
+          }
+        }
+        if (i > 0) costs[s2.length] = lastValue;
+      }
+      return costs[s2.length];
+    };
 
-  // 2. Pokud jsme nenašli klikací prvek, zkusíme doplňovací pole
-  if (!found) {
-    const input = document.querySelector('input[type="text"], textarea, .inputField, .answer-input');
-    if (input) {
-      input.value = "${cleanAnswer}";
-      input.innerText = "${cleanAnswer}";
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Enter' }));
-      console.log('%c[Turbo] VYPSÁNO!', 'color: #10b981; font-weight: bold');
-      found = true;
+    return ((longerLength - editDistance(longer, shorter)) / parseFloat(longerLength)) * 100;
+  };
+
+  const simulateClick = (el) => {
+    const opts = { bubbles: true, cancelable: true, view: window };
+    el.dispatchEvent(new MouseEvent('mousedown', opts));
+    el.dispatchEvent(new MouseEvent('mouseup', opts));
+    el.click();
+    el.dispatchEvent(new Event('change', opts));
+  };
+
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      const payload = JSON.parse(data.message);
+      const originalAns = payload.answer.trim();
+      
+      console.log('%c[umauto.ai] Přijata odpověď: ' + originalAns, 'color: #6366f1; font-weight: bold');
+
+      // Rozšířené selektory pro různé typy úkolů
+      const selectors = ['button', '.choice', '.option', '.answer-button', '.tile', '.item', '[role="button"]', '.word', '.draggable', 'span', 'div'];
+      let bestCandidate = null;
+      let highestScore = -1;
+
+      for (const selector of selectors) {
+        document.querySelectorAll(selector).forEach(el => {
+          const txt = el.innerText || '';
+          if (txt.length === 0 || el.offsetParent === null) return; // Ignorovat neviditelné
+          
+          const score = getSimilarity(txt, originalAns);
+          
+          if (score > highestScore) {
+            highestScore = score;
+            bestCandidate = el;
+          }
+        });
+      }
+
+      // Kliknout pouze pokud je shoda rozumná (nad 40%)
+      if (bestCandidate && highestScore > 40) {
+        console.log('%c[umauto.ai] Klikám (' + Math.round(highestScore) + '% shoda): ' + bestCandidate.innerText, 'color: #10b981; font-weight: bold');
+        simulateClick(bestCandidate);
+      } else {
+        const input = document.querySelector('input[type="text"], textarea, .inputField, [contenteditable="true"]');
+        if (input) {
+          input.value = originalAns;
+          if(input.innerText !== undefined) input.innerText = originalAns;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', code: 'Enter' }));
+          console.log('%c[umauto.ai] Vyplněno do textového pole.', 'color: #10b981; font-weight: bold');
+        } else {
+          console.warn('[umauto.ai] Žádná dostatečná shoda nenalezena (Max shoda: ' + Math.round(highestScore) + '%).');
+        }
+      }
+    } catch (e) {
+      console.error('[umauto.ai] Chyba:', e);
     }
-  }
+  };
 
-  if (!found) {
-    alert('Prvek pro "' + ans + '" nebyl nalezen. Zkuste kliknout ručně.');
-  }
+  eventSource.onerror = () => console.error('[umauto.ai] Most odpojen.');
 })();
     `.trim();
 
     navigator.clipboard.writeText(script).then(() => {
-      setCopyStatus('copied');
-      setTimeout(() => setCopyStatus('idle'), 4000);
+      setBridgeStatus('copied');
+      setTimeout(() => setBridgeStatus('idle'), 5000);
     });
   };
 
   if (!isVisible) {
     return (
-      <button 
-        onClick={() => setIsVisible(true)}
-        className="fixed bottom-6 right-6 w-16 h-16 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform z-[9999]"
-      >
-        <i className="fas fa-bolt text-2xl"></i>
+      <button onClick={() => setIsVisible(true)} className="fixed bottom-6 right-6 w-16 h-16 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform z-[9999]">
+        <i className="fas fa-brain text-2xl"></i>
       </button>
     );
   }
 
   return (
-    <div 
-      className={`fixed z-[9999] w-[360px] rounded-3xl overflow-hidden glass shadow-2xl transition-all duration-300 ${isDragging ? 'opacity-80 scale-95 ring-2 ring-indigo-400' : 'opacity-100 scale-100'}`}
-      style={{ left: position.x, top: position.y }}
-    >
-      {/* Header */}
-      <div 
-        onMouseDown={handleMouseDown}
-        className="bg-indigo-600 p-4 cursor-move flex items-center justify-between"
-      >
-        <div className="flex items-center gap-2 text-white font-bold tracking-tight">
-          <i className="fas fa-magic text-indigo-200"></i>
-          <span>Umíme To Auto-Helper</span>
+    <div className={`fixed z-[9999] w-[360px] rounded-3xl overflow-hidden glass shadow-2xl transition-all duration-300 ${isDragging ? 'opacity-80 scale-95 ring-2 ring-indigo-400' : 'opacity-100 scale-100'}`} style={{ left: position.x, top: position.y }}>
+      <div onMouseDown={handleMouseDown} className="bg-indigo-600 p-4 cursor-move flex items-center justify-between">
+        <div className="flex items-center gap-2 text-white font-black tracking-tight uppercase text-sm">
+          <i className="fas fa-bolt text-indigo-200"></i>
+          <span>umauto.ai ULTRA v3</span>
         </div>
-        <div className="flex gap-1.5">
-          <button 
-            onClick={onReanalyze}
-            disabled={isAnalyzing}
-            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 text-white transition-colors"
-          >
-            <i className={`fas fa-sync-alt text-xs ${isAnalyzing ? 'animate-spin' : ''}`}></i>
+        <div className="flex gap-2">
+          <button onClick={onReanalyze} disabled={isAnalyzing} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-white/20 text-white transition-colors">
+            <i className={`fas fa-redo-alt text-xs ${isAnalyzing ? 'animate-spin' : ''}`}></i>
           </button>
-          <button 
-            onClick={() => setIsVisible(false)}
-            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 text-white transition-colors"
-          >
-            <i className="fas fa-minus text-xs"></i>
+          <button onClick={() => setIsVisible(false)} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-white/20 text-white transition-colors">
+            <i className="fas fa-times text-xs"></i>
           </button>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="p-5 max-h-[400px] overflow-y-auto custom-scrollbar bg-white/50">
-        {!result ? (
-          <div className="text-center py-10 space-y-3">
-            <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto text-indigo-400 rotate-3">
-              <i className="fas fa-wand-magic-sparkles text-2xl"></i>
+      <div className="p-5 max-h-[480px] overflow-y-auto custom-scrollbar bg-white/50">
+        <div className="mb-4 space-y-2">
+          <div className="flex items-center justify-between bg-indigo-50 p-3 rounded-2xl border border-indigo-100">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Auto-klikání</span>
+              <span className="text-[9px] text-indigo-400">ID Mostu: {bridgeId}</span>
             </div>
-            <p className="text-slate-400 text-sm font-medium">Spusťte analýzu úkolu</p>
+            <button onClick={() => setAutoMode(!autoMode)} className={`w-12 h-6 rounded-full transition-colors relative ${autoMode ? 'bg-indigo-600' : 'bg-slate-300'}`}>
+              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${autoMode ? 'left-7' : 'left-1'}`}></div>
+            </button>
+          </div>
+        </div>
+
+        {!result ? (
+          <div className="space-y-4 py-2 text-center">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 italic">Použij nový skript pro ULTRA přesnost!</p>
+            <button onClick={copyCloudBridgeScript} className={`w-full py-3 rounded-xl font-black text-xs transition-all transform active:scale-95 flex items-center justify-center gap-2 ${bridgeStatus === 'copied' ? 'bg-emerald-500 text-white' : 'bg-slate-900 text-white hover:bg-black'}`}>
+              <i className={`fas ${bridgeStatus === 'copied' ? 'fa-check' : 'fa-copy'}`}></i>
+              {bridgeStatus === 'copied' ? 'ZKOPÍROVÁNO!' : 'KOPÍROVAT ULTRA SKRIPT'}
+            </button>
           </div>
         ) : (
-          <div className="space-y-4">
-            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group">
-              <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
-              <div className="flex justify-between items-start mb-2">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Správná Odpověď</span>
-                <button 
-                  onClick={copyAutoClickScript}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all transform active:scale-95 shadow-sm ${
-                    copyStatus === 'copied' 
-                    ? 'bg-emerald-500 text-white' 
-                    : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white'
-                  }`}
-                >
-                  <i className={`fas ${copyStatus === 'copied' ? 'fa-check-double' : 'fa-bolt'}`}></i>
-                  {copyStatus === 'copied' ? 'SKRIPT ZKOPÍROVÁN' : 'AUTO-CLICK'}
-                </button>
-              </div>
-              <p className="text-slate-900 font-extrabold text-2xl leading-tight">{result.answer}</p>
-              
-              {copyStatus === 'copied' && (
-                <div className="mt-3 py-2 px-3 bg-slate-900 rounded-xl animate-in fade-in slide-in-from-top-2">
-                  <p className="text-[9px] text-slate-100 leading-tight">
-                    <i className="fas fa-info-circle mr-1 text-indigo-400"></i>
-                    Běž na <b>Umíme To</b>, stiskni <b>F12</b>, vlož do <b>Console</b> a <b>Enter</b>.
-                  </p>
-                </div>
-              )}
+          <div className="space-y-5">
+            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-600"></div>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Správná Odpověď</span>
+              <p className="text-slate-900 font-black text-2xl leading-tight mb-2">{result.answer}</p>
+              {autoMode && <div className="flex items-center gap-1.5 text-[10px] font-black text-emerald-500 bg-emerald-50 py-1 px-3 rounded-full w-fit"><i className="fas fa-bolt"></i>AUTOMATICKY ODESLÁNO</div>}
             </div>
-
             <div className="px-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Rychlé vysvětlení</span>
-              <p className="text-slate-600 text-sm leading-relaxed italic">
-                {result.explanation}
-              </p>
-            </div>
-
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-[9px] font-mono text-slate-300">LITE MODE v2.1</span>
-              <span className="text-[9px] font-mono text-slate-300">{new Date(result.timestamp).toLocaleTimeString()}</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Vysvětlení</span>
+              <p className="text-slate-600 text-sm leading-relaxed font-medium bg-slate-50 p-3 rounded-2xl border border-dashed border-slate-200 italic">{result.explanation}</p>
             </div>
           </div>
         )}
       </div>
-
-      {/* Loading Overlay */}
       {isAnalyzing && (
-        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
-          <div className="relative w-12 h-12">
-            <div className="absolute inset-0 border-4 border-indigo-100 rounded-full"></div>
-            <div className="absolute inset-0 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+        <div className="absolute inset-0 bg-white/90 backdrop-blur-md flex flex-col items-center justify-center gap-4">
+          <div className="w-14 h-14 bg-indigo-600 rounded-full flex items-center justify-center animate-pulse shadow-lg">
+            <i className="fas fa-magic text-white text-2xl"></i>
           </div>
-          <span className="text-indigo-600 font-black text-[10px] tracking-[0.3em] uppercase animate-pulse">Magie pracuje...</span>
+          <span className="text-indigo-600 font-black text-[11px] tracking-[0.4em] uppercase">Hledám řešení...</span>
         </div>
       )}
     </div>

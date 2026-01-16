@@ -44,7 +44,7 @@ const App: React.FC = () => {
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: { 
           cursor: "always",
-          width: { ideal: 960 }, // Optimalizované rozlišení pro Lite model
+          width: { ideal: 960 },
           frameRate: { ideal: 10 }
         } as any,
         audio: false
@@ -95,7 +95,6 @@ const App: React.FC = () => {
       
       if (ctx) {
         ctx.drawImage(video, 0, 0, width, height);
-        // Nižší kvalita JPEG pro bleskové nahrávání a obejití limitů objemu dat
         const base64Image = canvas.toDataURL('image/jpeg', 0.4).split(',')[1];
         const result = await analyzeScreen(base64Image);
         setLastResult(result);
@@ -104,7 +103,7 @@ const App: React.FC = () => {
       console.error("Analysis error:", err);
       const isQuotaError = err.message === "QUOTA_EXHAUSTED";
       setError({ 
-        message: isQuotaError ? "API je přetížené. Zkuste to za chvíli." : "Zkuste to znovu.", 
+        message: isQuotaError ? "umauto.ai má moc práce. Zkus to za chvíli." : "Něco se nepovedlo, zkus to znovu.", 
         isQuota: isQuotaError 
       });
     } finally {
@@ -134,26 +133,26 @@ const App: React.FC = () => {
           </button>
         </div>
         <div className="inline-flex items-center justify-center w-14 h-14 bg-indigo-600 rounded-2xl shadow-lg mb-4">
-          <i className="fas fa-bolt text-2xl text-white"></i>
+          <i className="fas fa-brain text-2xl text-white"></i>
         </div>
-        <h1 className="text-3xl font-extrabold text-slate-900 mb-1 tracking-tight">
-          LITE <span className="text-indigo-600">Umíme To</span>
+        <h1 className="text-4xl font-black text-slate-900 mb-1 tracking-tight">
+          umauto<span className="text-indigo-600">.ai</span>
         </h1>
-        <p className="text-slate-500 text-sm">Model Flash Lite s nejvyšší kvótou požadavků.</p>
+        <p className="text-slate-500 text-sm font-medium uppercase tracking-widest">Tvůj osobní turbo asistent</p>
       </header>
 
       <main className="w-full max-w-4xl flex flex-col items-center gap-6">
         {!isCapturing ? (
           <button
             onClick={startCapture}
-            className="flex items-center gap-3 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-bold text-lg shadow-xl transition-all hover:scale-105 active:scale-95"
+            className="flex items-center gap-3 px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-bold text-lg shadow-xl transition-all hover:scale-105 active:scale-95"
           >
-            <i className="fas fa-desktop"></i>
-            Sdílet obrazovku
+            <i className="fas fa-play"></i>
+            Spustit umauto
           </button>
         ) : (
           <div className="flex flex-col items-center gap-4 w-full">
-            <div className="relative w-full max-w-2xl aspect-video rounded-2xl overflow-hidden shadow-2xl bg-black border-2 border-white">
+            <div className="relative w-full max-w-2xl aspect-video rounded-3xl overflow-hidden shadow-2xl bg-black border-4 border-white">
               <video 
                 ref={videoRef} 
                 autoPlay 
@@ -163,17 +162,17 @@ const App: React.FC = () => {
               />
               <button
                 onClick={stopCapture}
-                className="absolute top-3 right-3 p-2 bg-red-500/80 hover:bg-red-600 text-white rounded-full backdrop-blur-sm"
+                className="absolute top-4 right-4 p-3 bg-red-500 hover:bg-red-600 text-white rounded-2xl shadow-lg transition-colors"
               >
-                <i className="fas fa-times"></i>
+                <i className="fas fa-power-off"></i>
               </button>
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-full px-6 flex justify-center">
                 <button
                   onClick={captureAndAnalyze}
                   disabled={isAnalyzing}
-                  className={`px-8 py-3 ${isAnalyzing ? 'bg-slate-400' : 'bg-indigo-600 hover:bg-indigo-700'} text-white rounded-full font-bold text-base shadow-2xl transition-all active:scale-95`}
+                  className={`px-10 py-4 ${isAnalyzing ? 'bg-slate-400' : 'bg-indigo-600 hover:bg-indigo-700'} text-white rounded-2xl font-black text-lg shadow-2xl transition-all transform active:scale-95 w-full max-w-xs`}
                 >
-                  {isAnalyzing ? "Hledám řešení..." : "VYŘEŠIT ÚKOL"}
+                  {isAnalyzing ? "UMAUTO MYSLÍ..." : "VYŘEŠIT HNED"}
                 </button>
               </div>
             </div>
@@ -181,13 +180,13 @@ const App: React.FC = () => {
         )}
 
         {error && (
-          <div className={`w-full max-w-xl p-4 rounded-xl border flex flex-col gap-3 shadow-lg transform transition-all ${error.isQuota ? 'bg-amber-50 border-amber-300 text-amber-900' : 'bg-red-50 border-red-300 text-red-900'}`}>
-            <div className="flex items-center gap-3 font-bold">
-              <i className={`fas ${error.isQuota ? 'fa-clock text-amber-600' : 'fa-exclamation-circle text-red-600'}`}></i>
+          <div className={`w-full max-w-xl p-5 rounded-2xl border flex flex-col gap-3 shadow-lg transform animate-in fade-in slide-in-from-bottom-2 ${error.isQuota ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-red-50 border-red-200 text-red-900'}`}>
+            <div className="flex items-center gap-3 font-black">
+              <i className={`fas ${error.isQuota ? 'fa-hourglass-half text-amber-600' : 'fa-skull-crossbones text-red-600'}`}></i>
               {error.message}
             </div>
             {error.isQuota && (
-              <p className="text-xs">Model má momentálně moc práce. Zkuste kliknout na tlačítko znovu za pár sekund.</p>
+              <p className="text-sm opacity-80">Google mě trochu brzdí. Zkus kliknout na tlačítko znovu za 5 sekund.</p>
             )}
           </div>
         )}

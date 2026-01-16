@@ -1,6 +1,6 @@
 {
-  "name": "Copy of Umíme To Pomocník",
-  "description": "Inteligentní asistent pro vzdělávací portál Umíme to. Analyzuje obrazovku a poskytuje vysvětlení a správná řešení v reálném čase.",
+  "name": "umauto.ai",
+  "description": "Inteligentní asistent pro vzdělávací portál. Analyzuje obrazovku a poskytuje vysvětlení a správná řešení v reálném čase.",
   "requestFramePermissions": [
     "camera",
     "microphone",

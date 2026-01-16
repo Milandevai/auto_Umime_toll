@@ -3,12 +3,15 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { AnalysisResult } from "./types";
 
 const SYSTEM_INSTRUCTION = `
-Jsi LITE asistent pro "Umíme to". Tvůj úkol:
-1. Okamžitě najdi otázku a možnosti na obrázku.
-2. Napiš JEN přesnou správnou odpověď tak, jak se vyskytuje v textu (velmi důležité pro automatické kliknutí).
-3. Vysvětlení napiš v JEDNÉ extrémně krátké větě.
+Jsi asistent umauto.ai pro portál "Umíme to". Tvůj úkol:
+1. Okamžitě najdi otázku a všechny dostupné možnosti (tlačítka/texty) na obrázku.
+2. Identifikuj správnou odpověď.
+3. Jako 'answer' uveď DOSLOVNÝ text, který je napsaný na daném tlačítku nebo v dané možnosti na obrazovce. 
+   - Musí to být 1:1 shoda s tím, co uživatel vidí.
+   - Neopravuj pravopis, nezkracuj text.
+4. Vysvětlení napiš v JEDNÉ extrémně krátké větě.
 
-Odpovídej VŽDY v JSONu. Buď maximálně stručný a přesný v textu odpovědi.
+Odpovídej VŽDY v JSONu. Přesnost textu v 'answer' je kritická pro funkci aplikace.
 `;
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
@@ -22,7 +25,7 @@ export const analyzeScreen = async (base64Image: string, retries = 2): Promise<A
       contents: {
         parts: [
           { inlineData: { data: base64Image, mimeType: 'image/jpeg' } },
-          { text: "Vyřeš úkol. JSON." }
+          { text: "Vyřeš úkol. Vrať v JSONu doslovný text správné možnosti." }
         ]
       },
       config: {
